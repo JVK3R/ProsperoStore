@@ -14,9 +14,9 @@ namespace store::i18n
 {
 namespace
 {
-constexpr const char *kCodes[kLanguageCount] = {"en", "es", "fr", "pt", "ja", "de", "nl"};
-constexpr const char *kNames[kLanguageCount] = {"English", "Español", "Français",  "Português",
-                                                "日本語",  "Deutsch", "Nederlands"};
+constexpr const char *kCodes[kLanguageCount] = {"en", "es", "fr", "pt", "ja", "de", "nl", "tr"};
+constexpr const char *kNames[kLanguageCount] = {"English", "Español", "Français",   "Português",
+                                                "日本語",  "Deutsch", "Nederlands", "Türkçe"};
 
 // Read by the installer's thread as well as the screen's.
 std::atomic<Language> current{Language::english};
@@ -51,8 +51,8 @@ const Row *find(std::string_view english)
 Language from_console(int console_language)
 {
     // The console's numbers: 0 Japanese, 1 American English, 2 French, 3 Spanish, 4 German,
-    // 6 Dutch, 7 Portuguese, 17 Brazilian Portuguese, 18 British English, 20 Latin American
-    // Spanish, 22 Canadian French. Anything else has no translation here: English.
+    // 6 Dutch, 7 Portuguese, 17 Brazilian Portuguese, 18 British English, 19 Turkish, 20 Latin
+    // American Spanish, 22 Canadian French. Anything else has no translation here: English.
     Language language = Language::english;
     switch (console_language)
     {
@@ -76,6 +76,9 @@ Language from_console(int console_language)
     case 7:
     case 17:
         language = Language::portuguese;
+        break;
+    case 19:
+        language = Language::turkish;
         break;
     default:
         break;
@@ -143,14 +146,33 @@ std::string trs(std::string_view english)
 
 std::string upper(std::string_view text)
 {
+    const bool turkish = current.load() == Language::turkish;
     std::string out;
     out.reserve(text.size() + 4);
     for (std::size_t i = 0; i < text.size(); ++i)
     {
         const auto byte = static_cast<unsigned char>(text[i]);
-        if (byte >= 'a' && byte <= 'z')
+        if (byte == 'i' && turkish)
+        {
+            out += "\xC4\xB0"; // İ
+        }
+        else if (byte >= 'a' && byte <= 'z')
         {
             out += static_cast<char>(byte - 'a' + 'A');
+        }
+        else if (byte == 0xC4 && i + 1 < text.size() &&
+                 (static_cast<unsigned char>(text[i + 1]) == 0x9F ||
+                  static_cast<unsigned char>(text[i + 1]) == 0xB1))
+        {
+            // Turkish: ğ to Ğ, and the dotless ı to a plain I.
+            out += text[i + 1] == '\xB1' ? "I" : "\xC4\x9E";
+            ++i;
+        }
+        else if (byte == 0xC5 && i + 1 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) == 0x9F)
+        {
+            out += "\xC5\x9E"; // ş to Ş
+            ++i;
         }
         else if ((byte == 0xC3 || byte == 0xC5) && i + 1 < text.size())
         {

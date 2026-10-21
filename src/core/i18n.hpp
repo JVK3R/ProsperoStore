@@ -27,14 +27,15 @@ enum class Language : std::uint8_t
     japanese,
     german,
     dutch,
+    turkish,
 };
-constexpr int kLanguageCount = 7;
+constexpr int kLanguageCount = 8;
 
 // What the console is set to (SCE_SYSTEM_SERVICE_PARAM_ID_LANG) as one of ours. Both Spains, both
 // Portugals and both Frances are one language here; a language the store lacks is English.
 Language from_console(int console_language);
 
-const char *code(Language language);        // "en", "es", "fr", "pt", "ja", "de", "nl"
+const char *code(Language language);        // "en", "es", "fr", "pt", "ja", "de", "nl", "tr"
 const char *native_name(Language language); // as its speakers write it: "Español"
 bool parse_code(std::string_view text, Language *language);
 // Whether the store can show it now. Japanese needs its font (assets/fonts/noto-sans-jp-*.huifont):
@@ -49,7 +50,8 @@ Language language();
 std::string_view tr(std::string_view english);
 // The same as a string, for what takes ownership of its text.
 std::string trs(std::string_view english);
-// Capitals for small tracked labels ("UPDATE AVAILABLE"), accented letters and ß included.
+// Capitals for small tracked labels ("UPDATE AVAILABLE"), accented letters and ß included. In
+// Turkish the dotted i and the dotless ı keep their own capitals: İ and I.
 std::string upper(std::string_view text);
 // For an API that wants a C string. Every row and every English text is a literal, so the result
 // is one too: it ends where the text does and lives as long as the program.

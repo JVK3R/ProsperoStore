@@ -32,7 +32,7 @@ int main()
     assert(from_console(2) == Language::french && from_console(22) == Language::french);
     assert(from_console(7) == Language::portuguese && from_console(17) == Language::portuguese);
     assert(from_console(4) == Language::german && from_console(6) == Language::dutch);
-    assert(from_console(0) == Language::japanese);
+    assert(from_console(0) == Language::japanese && from_console(19) == Language::turkish);
     assert(from_console(5) == Language::english &&
            from_console(9) == Language::english); // none of ours
     assert(from_console(-1) == Language::english);
@@ -48,6 +48,8 @@ int main()
     assert(parse_code("ja", &parsed) && parsed == Language::japanese);
     assert(!parse_code("xx", &parsed) && !parse_code("", &parsed));
     assert(std::string(code(Language::dutch)) == "nl");
+    assert(parse_code("tr", &parsed) && parsed == Language::turkish);
+    assert(std::string(native_name(Language::turkish)) == "Türkçe");
 
     // The same sentence, in each language; a sentence that is not in the table stays as it is.
     set_language(Language::english);
@@ -59,6 +61,9 @@ int main()
     assert(tr("Settings") == "設定");
     set_language(Language::german);
     assert(tr("Settings") == "Einstellungen");
+    set_language(Language::turkish);
+    assert(tr("Settings") == "Ayarlar");
+    assert(trn(2, "{0} comment", "{0} comments") == "2 yorum");
 
     // {0} and the counts.
     set_language(Language::english);
@@ -82,6 +87,12 @@ int main()
     assert(upper("Straße") == "STRASSE");
     assert(upper("日本語") == "日本語");
     assert(upper("a÷b") == "A÷B"); // the division sign is not a letter
+    // Turkish: the dotted i is İ and the dotless ı is I, but only while the store speaks Turkish.
+    set_language(Language::turkish);
+    assert(upper("güncelleme mevcut") == "GÜNCELLEME MEVCUT");
+    assert(upper("işığı ğ") == "İŞIĞI Ğ");
+    set_language(Language::english);
+    assert(upper("işığı") == "IŞIĞI");
 
     // The table: a sentence once, in every language, with the same {0}s in all of them.
     std::set<std::string> seen;
