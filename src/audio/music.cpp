@@ -142,7 +142,8 @@ MusicPlayer::MusicPlayer() : buffer_(static_cast<std::size_t>(kChunk) * 2)
 {
 }
 
-int MusicPlayer::init(Mixer &mixer, const std::string &directory, std::uint64_t seed)
+int MusicPlayer::init(Mixer &mixer, const std::string &directory, std::uint64_t seed,
+                      const std::string &only)
 {
     mixer_ = &mixer;
     directory_ = directory;
@@ -153,7 +154,7 @@ int MusicPlayer::init(Mixer &mixer, const std::string &directory, std::uint64_t 
     for (const std::string &name : save::list_files(directory))
     {
         if (name.size() > 4 && name.compare(name.size() - 4, 4, ".ogg") == 0 &&
-            playlist_.size() < kMaxSongs)
+            playlist_.size() < kMaxSongs && (only.empty() || name == only + ".ogg"))
             playlist_.push_back(name.substr(0, name.size() - 4));
     }
     // A fresh order every launch: sort first so the seed alone decides it.

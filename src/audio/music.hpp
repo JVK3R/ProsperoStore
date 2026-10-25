@@ -66,8 +66,10 @@ class MusicPlayer
 
     // Lists the songs in directory (*.ogg, in a shuffled order from seed) and
     // attaches the music stream to the mixer (call before the audio thread
-    // starts). Returns how many songs were found.
-    int init(Mixer &mixer, const std::string &directory, std::uint64_t seed);
+    // starts). Returns how many songs were found. With only set, that one song (a name without
+    // .ogg) is the whole playlist, and nothing else in directory is played.
+    int init(Mixer &mixer, const std::string &directory, std::uint64_t seed,
+             const std::string &only = {});
 
     // Lowers the music under a sting for a moment.
     void duck();

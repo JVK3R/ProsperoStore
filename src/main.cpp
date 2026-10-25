@@ -218,8 +218,20 @@ int main()
     // The stream attaches before the audio thread starts; the bus stays silent
     // until the intro hands over, then fades in.
     audio::MusicPlayer music;
-    const int songs = music.init(mixer, app_root + "/assets/audio/music",
-                                 static_cast<std::uint64_t>(sys::monotonic_us()));
+    // A background.ogg in the store's data folder replaces the song that ships with the store,
+    // when it plays (48 kHz Vorbis); otherwise the shipped songs stay.
+    bool own_song = false;
+    {
+        std::string data;
+        audio::MusicTrack probe;
+        own_song =
+            save::read_file(std::string(storage_root) + "/background.ogg", &data, 32u << 20) &&
+            probe.open(std::move(data)).empty();
+    }
+    const auto seed = static_cast<std::uint64_t>(sys::monotonic_us());
+    const int songs = own_song ? music.init(mixer, storage_root, seed, "background")
+                               : music.init(mixer, app_root + "/assets/audio/music", seed);
+    sys::log("[STORE] own background song=%d", own_song ? 1 : 0);
     mixer.set_bus_gain(audio::Bus::music, 0.0f);
     sys::log("[STORE] music songs=%d", songs);
     // About 12 dB under the interface sounds: the song is mastered near -15 dBFS,
