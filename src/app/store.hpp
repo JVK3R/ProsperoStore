@@ -545,6 +545,7 @@ class Screen
 
     Zone zone_ = Zone::grid;
     int section_ = 0, focus_ = 0, banner_ = 0, banner_previous_ = 0;
+    int stage_pin_ = -1; // the app the stage keeps when the focus climbs from a shelf
     bool details_ = false, quit_ = false;
     // Closing the store: Circle held on the home page, a bar filling until it closes. The
     // hold must begin there, so leaving a page with Circle never runs on into closing.

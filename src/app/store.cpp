@@ -648,6 +648,7 @@ void Screen::rebuild()
         featured_.resize(kFeatured);
     banner_ = std::min(banner_, std::max(0, static_cast<int>(featured_.size()) - 1));
     banner_previous_ = banner_;
+    stage_pin_ = -1;
     const int count = static_cast<int>(visible_.size());
     focus_ = std::clamp(focus_, 0, std::max(0, count - 1));
     if (count == 0 && zone_ == Zone::grid)
@@ -1185,6 +1186,8 @@ int Screen::stage_index() const
 {
     if (zone_ == Zone::grid && focused())
         return static_cast<int>(visible_[static_cast<std::size_t>(focus_)]);
+    if (zone_ == Zone::banner && stage_pin_ >= 0)
+        return stage_pin_;
     if (banner_shown())
         return static_cast<int>(featured_[static_cast<std::size_t>(banner_)]);
     return focused() ? static_cast<int>(visible_[static_cast<std::size_t>(focus_)]) : -1;
@@ -1394,6 +1397,8 @@ void Screen::update_home(const InputFrame &input, ui::Feedback &feedback)
             case Direction::up:
                 if (s == 0)
                 {
+                    // The stage keeps the app that was in view, so the button is for it.
+                    stage_pin_ = static_cast<int>(visible_[static_cast<std::size_t>(focus_)]);
                     zone_ = Zone::banner;
                     feedback.play(audio::Cue::focus, 1.12f);
                 }
@@ -1475,11 +1480,13 @@ void Screen::update_home(const InputFrame &input, ui::Feedback &feedback)
         {
             // The featured apps are a loop: no ends to refuse at.
             const int step = input.nav == Direction::right ? 1 : -1;
+            stage_pin_ = -1;
             show_banner((banner_ + step + featured) % featured);
             feedback.play(audio::Cue::slider, 1.0f + 0.04f * static_cast<float>(banner_));
         }
         else if (input.nav == Direction::up)
         {
+            stage_pin_ = -1;
             zone_ = Zone::chips;
             feedback.play(audio::Cue::focus, 1.16f);
         }
@@ -1519,7 +1526,9 @@ void Screen::update_home(const InputFrame &input, ui::Feedback &feedback)
         if (zone_ == Zone::banner)
         {
             // The featured app opens where it stands on its shelf.
-            const auto wanted = featured_[static_cast<std::size_t>(banner_)];
+            const auto wanted = stage_pin_ >= 0 ? static_cast<std::size_t>(stage_pin_)
+                                                : featured_[static_cast<std::size_t>(banner_)];
+            stage_pin_ = -1;
             const auto found = std::find(visible_.begin(), visible_.end(), wanted);
             if (found == visible_.end())
                 return refuse(feedback, false, 0.0f, 1.0f);
@@ -1967,7 +1976,7 @@ void Screen::update(const InputFrame &raw, float dt, ui::Feedback &feedback)
 
     // The featured app moves on by itself while the stage shows it.
     const bool home = !details_ && banner_shown();
-    if (home && zone_ != Zone::grid && featured_.size() > 1)
+    if (home && zone_ != Zone::grid && stage_pin_ < 0 && featured_.size() > 1)
     {
         banner_clock_ += dt;
         if (banner_clock_ >= kBannerSeconds)
@@ -2302,7 +2311,8 @@ void Screen::draw_stage(const ui::Fonts &fonts)
                  kAllLayers);
     }
     // The featured apps: dots, the current one a bar that fills as its seconds pass.
-    const float dots = 1.0f - plate_.value;
+    // Pinned on an app of the shelves, the featured ones do not move: no dots.
+    const float dots = stage_pin_ >= 0 && zone_ == Zone::banner ? 0.0f : 1.0f - plate_.value;
     const int count = static_cast<int>(featured_.size());
     if (dots > 0.01f && count > 1)
     {
