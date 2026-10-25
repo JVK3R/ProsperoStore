@@ -1009,7 +1009,10 @@ int main()
             }
         // In as the intro hands over, over two seconds; quiet when sounds are off.
         {
-            const float target = screen.intro_finishing() && screen.settings().sounds ? 1.0f : 0.0f;
+            const float target =
+                screen.intro_finishing() && screen.settings().sounds && screen.settings().music
+                    ? 1.0f
+                    : 0.0f;
             const float step = std::min(dt, 0.05f) / 2.0f;
             const float before = music_level;
             music_level = target > music_level ? std::min(target, music_level + step)

@@ -3751,7 +3751,7 @@ std::string format_settings(const Settings &settings)
     for (const auto &name : settings.catalogs)
         catalogs += "\ncatalog=" + name;
     return "location=" + settings.location + "\nupdates=" + (settings.check_updates ? "1" : "0") +
-           "\nsounds=" + (settings.sounds ? "1" : "0") +
+           "\nsounds=" + (settings.sounds ? "1" : "0") + "\nmusic=" + (settings.music ? "1" : "0") +
            "\nvibration=" + (settings.vibration ? "1" : "0") +
            "\nmotion=" + (settings.reduce_motion ? "reduced" : "full") +
            "\ndebug=" + (settings.debug_log ? "1" : "0") +
@@ -3789,6 +3789,8 @@ Settings parse_settings(std::string_view text)
             settings.check_updates = value != "0";
         else if (key == "sounds")
             settings.sounds = value != "0";
+        else if (key == "music")
+            settings.music = value != "0";
         else if (key == "vibration")
             settings.vibration = value != "0";
         else if (key == "motion")
@@ -3983,7 +3985,7 @@ namespace
 // before 5 and Language are the Settings room's rows, with 11 opening the Catalogs room; the
 // Catalogs room holds 5 to 9, with one row per custom catalog (kCatalogSetting + its place)
 // between "Add a catalog" (7) and the signature switch (8).
-constexpr int kListedSettings[] = {0, 1, 14, 2, 3, 4, 13, 12, 10, 11};
+constexpr int kListedSettings[] = {0, 1, 14, 2, 15, 3, 4, 13, 12, 10, 11};
 constexpr int kListedCount = static_cast<int>(sizeof(kListedSettings) / sizeof(int));
 constexpr int kCatalogSetting = 20;
 constexpr int kCatalogsRoom = 2; // the panel's Catalogs room (panel_tab_)
@@ -4213,7 +4215,9 @@ void Screen::update_panel(const InputFrame &input, ui::Feedback &feedback)
                      feedback);
         return;
     }
-    if (setting == 14)
+    if (setting == 15)
+        settings_.music = !settings_.music;
+    else if (setting == 14)
         turn_language(turn);
     else if (setting == 13)
     {
@@ -4685,6 +4689,8 @@ void Screen::draw_panel(const ui::Fonts &fonts, std::uint32_t glass)
              settings_.show_comments},
             {10, tr("Language"), tr("The store's own words. Automatic follows the console."), 4,
              language_value(), true},
+            {5, tr("Background music"), tr("The song that plays under the store."), 1, "",
+             settings_.music},
         };
         float y = panel.y + 32.0f;
         const bool catalogs_room = panel_tab_ == kCatalogsRoom;

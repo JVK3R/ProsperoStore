@@ -86,6 +86,7 @@ struct Settings
     std::string location = "/data/homebrew"; // where new apps are installed
     bool check_updates = true;               // ask the catalog for a newer store at start
     bool sounds = true;
+    bool music = true; // the song under the store; off keeps only the interface sounds
     bool vibration = true;
     bool reduce_motion = false; // no drifting, floating or sliding: things fade instead
     // Records what the store does at each step, for a report: shown in About, written to
