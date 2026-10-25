@@ -17,15 +17,16 @@ struct stb_vorbis;
 namespace hui::audio
 {
 
-// One Vorbis file decoded from memory. By default it loops forever (LOOPSTART
-// / LOOPLENGTH comments pick the loop, else the whole file); a playlist song
-// plays once instead and decode() reports the end by returning short.
+// One Vorbis or MP3 file decoded from memory (MP3 is resampled to the mixer's rate). By default it
+// loops forever (LOOPSTART / LOOPLENGTH comments pick the loop, else the whole file); a playlist
+// song plays once instead and decode() reports the end by returning short.
 class MusicTrack
 {
   public:
     ~MusicTrack();
 
-    // Takes the whole file; returns an error, or "" on success. 48 kHz only.
+    // Takes the whole file; returns an error, or "" on success. Vorbis must be 48 kHz; an MP3
+    // (anything that is not an Ogg file) may be at any rate the format allows.
     std::string open(std::string data);
     void set_looping(bool looping)
     {
@@ -45,8 +46,16 @@ class MusicTrack
     }
 
   private:
+    struct Mp3;
+    std::string open_mp3();
+    int decode_mp3(float *out, int frames);
+
     std::string data_;
     stb_vorbis *vorbis_ = nullptr;
+    Mp3 *mp3_ = nullptr;
+    std::vector<float> mp3_frames_; // decoded stereo frames, read ahead of mp3_position_
+    std::size_t mp3_have_ = 0;      // frames in mp3_frames_
+    double mp3_position_ = 0.0;     // next output frame's place in mp3_frames_, in source frames
     int channels_ = 0;
     bool looping_ = true;
     unsigned position_ = 0; // sample frames decoded so far
@@ -67,7 +76,8 @@ class MusicPlayer
     // Lists the songs in directory (*.ogg, in a shuffled order from seed) and
     // attaches the music stream to the mixer (call before the audio thread
     // starts). Returns how many songs were found. With only set, that one song (a name without
-    // .ogg) is the whole playlist, and nothing else in directory is played.
+    // extension, e.g. "background.mp3") is the whole playlist, and nothing else in directory
+    // is played.
     int init(Mixer &mixer, const std::string &directory, std::uint64_t seed,
              const std::string &only = {});
 
@@ -97,6 +107,7 @@ class MusicPlayer
 
     Mixer *mixer_ = nullptr;
     std::string directory_;
+    std::string suffix_ = ".ogg"; // what the playlist's names lack: ".ogg", or ".mp3" for one MP3
     std::vector<std::string> playlist_;
     std::size_t next_ = 0; // index in playlist_ of the song after this one
     StreamRing ring_{1u << 16};

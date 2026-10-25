@@ -1,4 +1,4 @@
-// ps5-homebrew-ui - Background music: a shuffled playlist of OGG Vorbis songs.
+// ps5-homebrew-ui - Background music: a shuffled playlist of OGG Vorbis songs, or one MP3.
 // Copyright (C) 2026 BlackBearReloaded
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,6 +6,7 @@
 
 #include "core/save_file.hpp"
 
+#include "third_party/minimp3/mp3.h"
 #include "third_party/stb/vorbis.h"
 
 #include <algorithm>
@@ -28,6 +29,7 @@ constexpr float kGapSeconds = 1.5f;   // quiet breath between songs
 constexpr std::size_t kAhead = 32768; // frames kept buffered (~0.7 s)
 constexpr int kChunk = 2048;          // frames decoded per step
 constexpr std::size_t kMaxSongs = 64;
+constexpr std::size_t kMp3Chunk = 4096; // frames read from an MP3 per step
 
 bool comment_value(const stb_vorbis_comment &comments, const char *key, unsigned *value)
 {
@@ -55,15 +57,27 @@ std::uint64_t next_random(std::uint64_t &state)
 
 } // namespace
 
+struct MusicTrack::Mp3
+{
+    mp3dec_ex_t decoder;
+};
+
 MusicTrack::~MusicTrack()
 {
     if (vorbis_ != nullptr)
         stb_vorbis_close(vorbis_);
+    if (mp3_ != nullptr)
+    {
+        mp3dec_ex_close(&mp3_->decoder);
+        delete mp3_;
+    }
 }
 
 std::string MusicTrack::open(std::string data)
 {
     data_ = std::move(data);
+    if (data_.compare(0, 4, "OggS") != 0)
+        return open_mp3();
     int error = 0;
     vorbis_ = stb_vorbis_open_memory(reinterpret_cast<const unsigned char *>(data_.data()),
                                      static_cast<int>(data_.size()), &error, nullptr);
@@ -92,8 +106,82 @@ std::string MusicTrack::open(std::string data)
     return {};
 }
 
+std::string MusicTrack::open_mp3()
+{
+    mp3_ = new Mp3{};
+    if (mp3dec_ex_open_buf(&mp3_->decoder, reinterpret_cast<const std::uint8_t *>(data_.data()),
+                           data_.size(), MP3D_SEEK_TO_SAMPLE) != 0)
+    {
+        delete mp3_;
+        mp3_ = nullptr;
+        return "not an Ogg Vorbis or MP3 stream";
+    }
+    const mp3dec_ex_t &decoder = mp3_->decoder;
+    if (decoder.info.hz < 8000 || decoder.info.hz > 96000)
+        return "sample rate " + std::to_string(decoder.info.hz) + " (need 8000 to 96000)";
+    if (decoder.info.channels < 1 || decoder.info.channels > 2)
+        return std::to_string(decoder.info.channels) + " channels (need 1 or 2)";
+    if (decoder.samples == 0)
+        return "empty stream";
+    return {};
+}
+
+// Reads on from the MP3 and resamples linearly to the mixer's rate. Whole-file loop.
+int MusicTrack::decode_mp3(float *out, int frames)
+{
+    mp3dec_ex_t &decoder = mp3_->decoder;
+    const int channels = decoder.info.channels;
+    const double step = static_cast<double>(decoder.info.hz) / kSampleRate;
+    int done = 0;
+    int empty = 0;
+    while (done < frames)
+    {
+        const auto at = static_cast<std::size_t>(mp3_position_);
+        if (at + 1 >= mp3_have_)
+        {
+            // Keep the frames still needed at the front, then read on after them.
+            const std::size_t keep = mp3_have_ - std::min(at, mp3_have_);
+            if (keep > 0)
+                std::copy(mp3_frames_.begin() + static_cast<std::ptrdiff_t>(at * 2),
+                          mp3_frames_.begin() + static_cast<std::ptrdiff_t>(mp3_have_ * 2),
+                          mp3_frames_.begin());
+            mp3_position_ -= static_cast<double>(std::min(at, mp3_have_));
+            mp3_have_ = keep;
+            mp3_frames_.resize((mp3_have_ + kMp3Chunk) * 2);
+            float *tail = mp3_frames_.data() + mp3_have_ * 2;
+            const std::size_t got =
+                mp3dec_ex_read(&decoder, tail, kMp3Chunk * static_cast<std::size_t>(channels)) /
+                static_cast<std::size_t>(channels);
+            if (got == 0)
+            {
+                if (!looping_ || ++empty > 2 || mp3dec_ex_seek(&decoder, 0) != 0)
+                    return done;
+                continue;
+            }
+            empty = 0;
+            if (channels == 1)
+            {
+                // Spread mono to both sides, back to front so nothing is overwritten.
+                for (std::size_t k = got; k-- > 0;)
+                    tail[k * 2] = tail[k * 2 + 1] = tail[k];
+            }
+            mp3_have_ += got;
+            continue;
+        }
+        const float *a = mp3_frames_.data() + at * 2;
+        const auto t = static_cast<float>(mp3_position_ - static_cast<double>(at));
+        out[static_cast<std::size_t>(done) * 2] = a[0] + (a[2] - a[0]) * t;
+        out[static_cast<std::size_t>(done) * 2 + 1] = a[1] + (a[3] - a[1]) * t;
+        mp3_position_ += step;
+        ++done;
+    }
+    return done;
+}
+
 int MusicTrack::decode(float *out, int frames)
 {
+    if (mp3_ != nullptr)
+        return decode_mp3(out, frames);
     int done = 0;
     int stalls = 0;
     while (done < frames)
@@ -153,10 +241,13 @@ int MusicPlayer::init(Mixer &mixer, const std::string &directory, std::uint64_t 
 
     for (const std::string &name : save::list_files(directory))
     {
-        if (name.size() > 4 && name.compare(name.size() - 4, 4, ".ogg") == 0 &&
-            playlist_.size() < kMaxSongs && (only.empty() || name == only + ".ogg"))
+        if (name.size() > 4 &&
+            name.compare(name.size() - 4, 4, only.empty() ? ".ogg" : ".mp3") == 0 &&
+            playlist_.size() < kMaxSongs && (only.empty() || name == only))
             playlist_.push_back(name.substr(0, name.size() - 4));
     }
+    if (!only.empty())
+        suffix_ = ".mp3";
     // A fresh order every launch: sort first so the seed alone decides it.
     std::sort(playlist_.begin(), playlist_.end());
     std::uint64_t state = seed;
@@ -176,7 +267,7 @@ bool MusicPlayer::next_song()
         std::string data;
         auto track = std::make_unique<MusicTrack>();
         std::string error = "unreadable";
-        if (save::read_file(directory_ + "/" + name + ".ogg", &data, 32u << 20))
+        if (save::read_file(directory_ + "/" + name + suffix_, &data, 32u << 20))
             error = track->open(std::move(data));
         if (error.empty())
         {

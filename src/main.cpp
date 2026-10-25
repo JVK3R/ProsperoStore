@@ -218,18 +218,18 @@ int main()
     // The stream attaches before the audio thread starts; the bus stays silent
     // until the intro hands over, then fades in.
     audio::MusicPlayer music;
-    // A background.ogg in the store's data folder replaces the song that ships with the store,
-    // when it plays (48 kHz Vorbis); otherwise the shipped songs stay.
+    // A background.mp3 in the store's data folder replaces the song that ships with the store,
+    // when it plays; otherwise the shipped songs stay.
     bool own_song = false;
     {
         std::string data;
         audio::MusicTrack probe;
         own_song =
-            save::read_file(std::string(storage_root) + "/background.ogg", &data, 32u << 20) &&
+            save::read_file(std::string(storage_root) + "/background.mp3", &data, 32u << 20) &&
             probe.open(std::move(data)).empty();
     }
     const auto seed = static_cast<std::uint64_t>(sys::monotonic_us());
-    const int songs = own_song ? music.init(mixer, storage_root, seed, "background")
+    const int songs = own_song ? music.init(mixer, storage_root, seed, "background.mp3")
                                : music.init(mixer, app_root + "/assets/audio/music", seed);
     sys::log("[STORE] own background song=%d", own_song ? 1 : 0);
     mixer.set_bus_gain(audio::Bus::music, 0.0f);
