@@ -202,6 +202,23 @@ they hold is shown as plain text, cut to length, and the only address taken from
 discussion's, which must be on github.com and is only ever shown as that code. When they can't
 be read there are simply no likes and comments, and the rest of the store works as before.
 
+## Custom background music
+
+The store can play your own song under its screens instead of the one it ships with.
+
+1. Get an MP3 file, mono or stereo, at any sample rate from 8 kHz to 96 kHz (44.1 kHz is fine;
+   the store converts it to the console's 48 kHz).
+2. Name it exactly `background.mp3`.
+3. Copy it by FTP to `/data/prosperostore/`, the folder the store creates the first time it opens.
+4. Close ProsperoStore and open it again. The file is read when the store starts.
+
+The song then plays in a loop in place of the shipped one. To go back to the original music,
+delete `background.mp3` and restart the store. If the file can't be played (it is damaged or isn't
+an MP3), the store ignores it and keeps the shipped song.
+
+**Settings → Background music** switches the music off and on, with your song or without it; the
+music also stays quiet while **Sounds** is off.
+
 ## Reporting a problem
 
 If the store shows no apps, stays offline or can't install something, switch on **Debug log** in
